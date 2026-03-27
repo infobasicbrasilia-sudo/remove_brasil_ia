@@ -9,6 +9,7 @@
             font-family: 'Segoe UI', sans-serif;
             background-color: #f0f2f5;
             display: flex;
+            flex-direction: column; /* Ajustado para comportar o contador abaixo */
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -83,6 +84,8 @@
         }
         
         .footer { font-size: 10px; color: #999; margin-top: 20px; }
+        
+        .counter-area { margin-top: 20px; } /* Espaçamento para o contador */
     </style>
 </head>
 <body>
@@ -107,6 +110,13 @@
         Devs: Alunos do Instrutor Joner 2026<br>
         Tecnologia Zero-Key Exposure (Segurança Máxima)
     </div>
+</div>
+
+<div class="counter-area" align="center">
+    <a href='https://www.counter12.com'>
+        <img src='https://www.counter12.com/img-8xW6aD0D8x90Z669-3.gif' border='0' alt='contador free'>
+    </a>
+    <script type='text/javascript' src='https://www.counter12.com/ad.js?id=8xW6aD0D8x90Z669'></script>
 </div>
 
 <script>
@@ -143,7 +153,6 @@
         formData.append("size", "auto");
 
         try {
-            // A mágica: Chamamos nossa PRÓPRIA API no Vercel
             const response = await fetch("/api/remove-bg", {
                 method: "POST",
                 body: formData
