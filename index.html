@@ -9,7 +9,7 @@
             font-family: 'Segoe UI', sans-serif;
             background-color: #f0f2f5;
             display: flex;
-            flex-direction: column; /* Ajustado para comportar o contador abaixo */
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -23,7 +23,7 @@
             text-align: center;
             width: 90%;
             max-width: 500px;
-            border-bottom: 5px solid #009c3b; /* Detalhe verde */
+            border-bottom: 5px solid #009c3b;
         }
         .logo { max-width: 200px; margin-bottom: 10px; }
         h1 { color: #0047bb; margin-bottom: 5px; font-size: 24px; }
@@ -40,6 +40,7 @@
             margin-bottom: 20px;
             background-color: #fafafa;
             position: relative;
+            overflow: hidden;
         }
         #imagePreview { max-width: 100%; max-height: 100%; display: none; }
         
@@ -53,6 +54,7 @@
             font-weight: bold;
             transition: 0.3s;
         }
+        .custom-file-upload:hover { background-color: #003580; }
         
         #removeBtn {
             display: block;
@@ -66,15 +68,16 @@
             font-weight: bold;
             cursor: pointer;
             margin-top: 15px;
+            transition: 0.3s;
         }
-        
+        #removeBtn:hover:not(:disabled) { background-color: #007d2f; }
         #removeBtn:disabled { background-color: #ccc; cursor: not-allowed; }
         
         .download-btn {
             display: none;
             width: 100%;
             padding: 15px;
-            background-color: #ffcc00; /* Amarelo Brasil */
+            background-color: #ffcc00;
             color: #0047bb;
             text-decoration: none;
             border-radius: 6px;
@@ -83,9 +86,8 @@
             box-sizing: border-box;
         }
         
-        .footer { font-size: 10px; color: #999; margin-top: 20px; }
-        
-        .counter-area { margin-top: 20px; } /* Espaçamento para o contador */
+        .footer { font-size: 10px; color: #999; margin-top: 20px; line-height: 1.5; }
+        .counter-area { margin-top: 25px; padding-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -126,6 +128,7 @@
     const downloadBtn = document.getElementById('downloadBtn');
     const placeholder = document.getElementById('placeholder');
 
+    // Preview da imagem ao selecionar
     fileInput.addEventListener('change', function() {
         const file = this.files[0];
         if (file) {
@@ -136,11 +139,13 @@
                 placeholder.style.display = 'none';
                 removeBtn.disabled = false;
                 downloadBtn.style.display = 'none';
+                removeBtn.innerText = "Remover Fundo Agora";
             }
             reader.readAsDataURL(file);
         }
     });
 
+    // Ação de remover fundo
     removeBtn.addEventListener('click', async () => {
         const file = fileInput.files[0];
         if (!file) return;
@@ -150,25 +155,32 @@
 
         const formData = new FormData();
         formData.append("image_file", file);
-        formData.append("size", "auto");
 
         try {
+            // Chamada para a Serverless Function no Vercel
             const response = await fetch("/api/remove-bg", {
                 method: "POST",
                 body: formData
             });
 
-            if (!response.ok) throw new Error("Erro no servidor");
+            if (!response.ok) {
+                const errorMsg = await response.text();
+                throw new Error(errorMsg || "Erro no servidor");
+            }
 
             const resultBlob = await response.blob();
             const resultUrl = URL.createObjectURL(resultBlob);
 
+            // Atualiza interface com resultado
             imagePreview.src = resultUrl;
             downloadBtn.href = resultUrl;
             downloadBtn.style.display = 'block';
             removeBtn.innerText = "Sucesso!";
+            removeBtn.style.backgroundColor = "#0047bb";
+
         } catch (error) {
-            alert("Erro ao processar. Verifique se o Vercel está configurado.");
+            console.error("Erro:", error);
+            alert("Erro ao processar imagem. Verifique se a Key da API está correta no painel do Vercel.");
             removeBtn.innerText = "Tentar Novamente";
             removeBtn.disabled = false;
         }
