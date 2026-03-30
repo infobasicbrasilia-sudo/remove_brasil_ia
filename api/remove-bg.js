@@ -7,11 +7,11 @@ export const config = {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Apenas POST' });
 
-  // Pega a chave que você salvou na Vercel
+  // Pega a chave que você salvou na Vercel como CLIPDROP_API_KEY
   const CLIPDROP_KEY = process.env.CLIPDROP_API_KEY;
 
   if (!CLIPDROP_KEY) {
-    return res.status(500).send("ERRO TÉCNICO: Chave CLIPDROP_API_KEY não encontrada no sistema da Vercel.");
+    return res.status(500).send("Chave CLIPDROP_API_KEY não configurada na Vercel.");
   }
 
   try {
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     }
     const bufferBody = Buffer.concat(chunks);
 
-    // Chamada direta para ClipDrop
+    // Chamada exclusiva para ClipDrop
     const response = await fetch("https://clipdrop-api.co/remove-background/v1", {
       method: "POST",
       headers: {
@@ -33,9 +33,7 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       const errorDetail = await response.text();
-      console.error("Erro ClipDrop:", errorDetail);
-      // Retorna o erro real para o seu HTML mostrar no console
-      return res.status(response.status).send(`Erro na API ClipDrop: ${errorDetail}`);
+      return res.status(response.status).send(errorDetail);
     }
 
     const imageBuffer = await response.arrayBuffer();
