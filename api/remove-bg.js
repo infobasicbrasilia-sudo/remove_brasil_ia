@@ -1,56 +1,48 @@
 export const config = {
   api: {
-    bodyParser: false, // Necessário para processar o stream da imagem corretamente
+    bodyParser: false, 
   },
 };
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Apenas POST permitido' });
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Apenas POST' });
 
-  // Agora usamos apenas a chave do ClipDrop
+  // Pega a chave que você salvou na Vercel
   const CLIPDROP_KEY = process.env.CLIPDROP_API_KEY;
 
   if (!CLIPDROP_KEY) {
-    console.error("ERRO: Variável CLIPDROP_API_KEY não configurada na Vercel.");
-    return res.status(500).json({ error: "Configuração de API ausente." });
+    return res.status(500).send("ERRO TÉCNICO: Chave CLIPDROP_API_KEY não encontrada no sistema da Vercel.");
   }
 
   try {
-    // Coleta os dados brutos da imagem (Buffer)
     const chunks = [];
     for await (const chunk of req) {
       chunks.push(chunk);
     }
     const bufferBody = Buffer.concat(chunks);
 
-    console.log("Processando imagem via ClipDrop API...");
-
-    // Chamada direta para o ClipDrop
+    // Chamada direta para ClipDrop
     const response = await fetch("https://clipdrop-api.co/remove-background/v1", {
       method: "POST",
       headers: {
         "x-api-key": CLIPDROP_KEY,
-        "Content-Type": req.headers['content-type'] // Repassa o multipart/form-data original
+        "Content-Type": req.headers['content-type']
       },
       body: bufferBody
     });
 
-    // Se a API do ClipDrop retornar erro (ex: limite atingido ou chave inválida)
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Erro na API ClipDrop:", errorText);
-      return res.status(response.status).send(errorText);
+      const errorDetail = await response.text();
+      console.error("Erro ClipDrop:", errorDetail);
+      // Retorna o erro real para o seu HTML mostrar no console
+      return res.status(response.status).send(`Erro na API ClipDrop: ${errorDetail}`);
     }
 
-    // Sucesso: Recebe a imagem processada
     const imageBuffer = await response.arrayBuffer();
-    
-    // Configura o cabeçalho para responder como imagem PNG
     res.setHeader('Content-Type', 'image/png');
     return res.status(200).send(Buffer.from(imageBuffer));
 
   } catch (error) {
-    console.error("Erro interno no servidor Brasil IA:", error.message);
-    return res.status(500).json({ error: "Falha interna: " + error.message });
+    return res.status(500).send("Erro interno: " + error.message);
   }
 }
