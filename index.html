@@ -114,11 +114,8 @@
     </div>
 </div>
 
-<div class="counter-area" align="center">
-    <a href='https://www.counter12.com'>
-        <img src='https://www.counter12.com/img-8xW6aD0D8x90Z669-3.gif' border='0' alt='contador free'>
-    </a>
-    <script type='text/javascript' src='https://www.counter12.com/ad.js?id=8xW6aD0D8x90Z669'></script>
+<div id="visitCounter">
+    Carregando acessos...
 </div>
 
 <script>
@@ -185,6 +182,29 @@
             removeBtn.disabled = false;
         }
     });
+</script>
+<script>
+
+async function loadCounter() {
+
+    try {
+
+        const response = await fetch("/api/counter");
+
+        const data = await response.json();
+
+        document.getElementById("visitCounter")
+        .textContent =
+            `👥 ${data.visits.toLocaleString()} acessos`;
+
+    } catch (error) {
+
+        console.error(error);
+    }
+}
+
+loadCounter();
+
 </script>
 
 </body>
