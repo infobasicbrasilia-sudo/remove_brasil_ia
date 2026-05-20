@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
+    <meta http-equiv="Content-Security-Policy"
+content="
+default-src 'self';
+img-src 'self' blob: data:;
+script-src 'self' 'unsafe-inline';
+style-src 'self' 'unsafe-inline';
+connect-src 'self' https://clipdrop-api.co;
+">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>InfoJon - Removedor de Fundo Oficial</title>
@@ -188,17 +196,35 @@ async function loadCounter() {
 
     try {
 
-        const response = await fetch("/api/counter");
+        const response =
+            await fetch("/api/counter");
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(
+                "Erro ao carregar contador"
+            );
+        }
 
-        document.getElementById("visitCounter")
-        .textContent =
-            `👥 ${data.visits.toLocaleString()} acessos`;
+        const data =
+            await response.json();
+
+        // garante valor válido
+        const visits =
+            Number(data.visits || 0);
+
+        document
+            .getElementById("visitCounter")
+            .textContent =
+            `👥 ${visits.toLocaleString()} acessos`;
 
     } catch (error) {
 
         console.error(error);
+
+        document
+            .getElementById("visitCounter")
+            .textContent =
+            "Erro ao carregar acessos";
     }
 }
 
