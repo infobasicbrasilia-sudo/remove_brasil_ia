@@ -1,20 +1,9 @@
 {
   "version": 2,
   "functions": {
-    "api/remove-fundo.js": {
+    "api/remove-bg.js": {
       "maxDuration": 30,
       "memory": 1024
     }
-  },
-  "headers": [
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
-    }
-  ]
+  }
 }
