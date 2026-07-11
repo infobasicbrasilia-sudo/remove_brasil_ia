@@ -1,7 +1,7 @@
 {
-  "name": "remove-bg",
-  "version": "1.0.0",
+  "type": "module",
   "dependencies": {
-    "busboy": "^1.6.0"
+    "multer": "^2.2.0",
+    "node-fetch": "^2.7.0"
   }
 }
