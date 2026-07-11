@@ -9,6 +9,13 @@ export const config = {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Modelos gratuitos do Hugging Face (ordem de prioridade)
+const MODELS = [
+  'Xenova/remove-background',      // Leve e rápido
+  'nateraw/background-remover',    // Alternativo
+  'Schmunk/rembg'                  // Mais pesado, mas preciso
+];
+
 export default async function handler(req, res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
@@ -16,13 +23,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Método inválido' });
   }
 
-  const PIXEL_API_KEY = process.env.PIXEL_API_KEY;
-  if (!PIXEL_API_KEY) {
-    console.error('❌ PIXEL_API_KEY não configurada');
-    return res.status(500).send('Chave da PixelAPI não configurada.');
+  const HF_TOKEN = process.env.HF_TOKEN;
+  if (!HF_TOKEN) {
+    console.error('❌ HF_TOKEN não configurada');
+    return res.status(500).send('Token do Hugging Face não configurado.');
   }
 
   try {
+    // Processar upload
     await new Promise((resolve, reject) => {
       upload.single('image_file')(req, res, (err) => {
         if (err) reject(err);
@@ -39,43 +47,47 @@ export default async function handler(req, res) {
       return res.status(413).send('Arquivo muito grande (máx 5MB).');
     }
 
-    // Converte a imagem para base64 (PixelAPI aceita isso)
-    const base64Image = file.buffer.toString('base64');
-    const payload = {
-      image: base64Image,
-      format: 'png'
-    };
+    console.log(`📤 Testando com ${MODELS.length} modelos...`);
 
-    console.log('📤 Enviando para PixelAPI...');
-    const response = await fetch('https://api.pixelapi.com/remove-background', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PIXEL_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    // Tentar cada modelo em sequência
+    let lastError = null;
+    for (const model of MODELS) {
+      try {
+        console.log(`➡️ Tentando: ${model}`);
+        const response = await fetch(
+          `https://api-inference.huggingface.co/models/${model}`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${HF_TOKEN}`,
+              'Content-Type': file.mimetype || 'image/png',
+            },
+            body: file.buffer,
+          }
+        );
 
-    console.log('📊 Status da resposta:', response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ PixelAPI error (${response.status}):`, errorText);
-      return res.status(response.status).send(`Erro na PixelAPI: ${response.status}`);
+        if (response.ok) {
+          console.log(`✅ Sucesso com ${model}`);
+          const imageBuffer = await response.buffer();
+          res.setHeader('Content-Type', 'image/png');
+          return res.status(200).send(imageBuffer);
+        } else {
+          const errorText = await response.text();
+          console.warn(`⚠️ ${model} falhou (${response.status}): ${errorText}`);
+          lastError = `${model}: ${response.status} - ${errorText}`;
+        }
+      } catch (err) {
+        console.warn(`⚠️ Erro com ${model}: ${err.message}`);
+        lastError = `${model}: ${err.message}`;
+      }
     }
 
-    // PixelAPI retorna a imagem em base64
-    const data = await response.json();
-    if (!data.image) {
-      throw new Error('Resposta da PixelAPI não contém imagem');
-    }
+    // Se todos falharam
+    console.error('❌ Todos os modelos falharam.');
+    throw new Error(`Todos os modelos falharam. Último erro: ${lastError}`);
 
-    const imageBuffer = Buffer.from(data.image, 'base64');
-    res.setHeader('Content-Type', 'image/png');
-    return res.status(200).send(imageBuffer);
-    
   } catch (error) {
-    console.error('❌ Erro no handler:', error);
+    console.error('❌ Erro final:', error);
     return res.status(500).send('Erro interno: ' + (error.message || 'sem detalhes'));
   }
 }
