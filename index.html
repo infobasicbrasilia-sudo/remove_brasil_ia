@@ -34,7 +34,6 @@ connect-src 'self' https://clipdrop-api.co;
             border-bottom: 5px solid #009c3b;
         }
         
-        /* Estilo da logo seguindo o padrão do segundo código */
         .logo-brasil {
             width: 120px;
             height: auto;
@@ -104,23 +103,20 @@ connect-src 'self' https://clipdrop-api.co;
             box-sizing: border-box;
         }
         
-        #visitCounter {
-            margin-top: 15px;
-            text-align: center;
-            color: #0047bb;
-            font-weight: bold;
+        .footer {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #777;
         }
-        
     </style>
 </head>
 <body>
 
 <div class="container">
     
-    <!-- Logo adicionada seguindo o padrão do segundo código -->
     <img src="disruptLogo.png" alt="Logo" class="logo-brasil">
     
-    <h1>Remover Fundo </h1>
+    <h1>Remover Fundo</h1>
    
     <div class="preview-container">
         <span id="placeholder" style="color:#aaa">Sua foto aparecerá aqui</span>
@@ -131,15 +127,11 @@ connect-src 'self' https://clipdrop-api.co;
     <input type="file" id="fileInput" accept="image/*" style="display:none">
 
     <button id="removeBtn" disabled>Remover Fundo Agora</button>
-    <a id="downloadBtn" class="download-btn" download="brasil_ia_resultado.png">BAIXAR FOTO PRONTA</a>
+    <a id="downloadBtn" class="download-btn" download="resultado_sem_fundo.png">BAIXAR FOTO PRONTA</a>
 
     <div class="footer">
-        Devs: Alunos de Samambaia 404 do Instrutor Joner 2026<br>
+        Devs: Alunos de Samambaia 404 do Instrutor Joner 2026
     </div>
-</div>
-
-<div id="visitCounter">
-    Carregando acessos...
 </div>
 
 <script>
@@ -149,7 +141,6 @@ connect-src 'self' https://clipdrop-api.co;
     const downloadBtn = document.getElementById('downloadBtn');
     const placeholder = document.getElementById('placeholder');
 
-    // Preview da imagem ao selecionar
     fileInput.addEventListener('change', function() {
         const file = this.files[0];
         if (file) {
@@ -161,24 +152,23 @@ connect-src 'self' https://clipdrop-api.co;
                 removeBtn.disabled = false;
                 downloadBtn.style.display = 'none';
                 removeBtn.innerText = "Remover Fundo Agora";
+                removeBtn.style.backgroundColor = "#009c3b";
             }
             reader.readAsDataURL(file);
         }
     });
 
-    // Ação de remover fundo
     removeBtn.addEventListener('click', async () => {
         const file = fileInput.files[0];
         if (!file) return;
 
         removeBtn.disabled = true;
-        removeBtn.innerText = "IA Brasil Processando...";
+        removeBtn.innerText = "Processando...";
 
         const formData = new FormData();
         formData.append("image_file", file);
 
         try {
-            // Chamada para a Serverless Function no Vercel
             const response = await fetch("/api/remove-bg", {
                 method: "POST",
                 body: formData
@@ -192,7 +182,6 @@ connect-src 'self' https://clipdrop-api.co;
             const resultBlob = await response.blob();
             const resultUrl = URL.createObjectURL(resultBlob);
 
-            // Atualiza interface com resultado
             imagePreview.src = resultUrl;
             downloadBtn.href = resultUrl;
             downloadBtn.style.display = 'block';
@@ -201,52 +190,12 @@ connect-src 'self' https://clipdrop-api.co;
 
         } catch (error) {
             console.error("Erro:", error);
-            alert("Erro ao processar imagem. Verifique se a Key da API está correta no painel do Vercel.");
+            alert("Erro ao processar imagem. Verifique se a chave da API está correta.");
             removeBtn.innerText = "Tentar Novamente";
             removeBtn.disabled = false;
+            removeBtn.style.backgroundColor = "#009c3b";
         }
     });
-</script>
-<script>
-
-async function loadCounter() {
-
-    try {
-
-        const response =
-            await fetch("/api/counter");
-
-        if (!response.ok) {
-            throw new Error(
-                "Erro ao carregar contador"
-            );
-        }
-
-        const data =
-            await response.json();
-
-        // garante valor válido
-        const visits =
-            Number(data.visits || 0);
-
-        document
-            .getElementById("visitCounter")
-            .textContent =
-            `👥 ${visits.toLocaleString()} acessos`;
-
-    } catch (error) {
-
-        console.error(error);
-
-        document
-            .getElementById("visitCounter")
-            .textContent =
-            "Erro ao carregar acessos";
-    }
-}
-
-loadCounter();
-
 </script>
 
 </body>
