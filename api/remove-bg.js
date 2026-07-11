@@ -10,6 +10,8 @@ export const config = {
 const upload = multer({ storage: multer.memoryStorage() });
 
 export default async function handler(req, res) {
+  console.log('🚀 Função remove-bg iniciada');
+  
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method !== 'POST') {
@@ -17,13 +19,14 @@ export default async function handler(req, res) {
   }
 
   const HF_TOKEN = process.env.HF_TOKEN;
+  console.log('🔑 HF_TOKEN existe?', !!HF_TOKEN);
+  
   if (!HF_TOKEN) {
     console.error('❌ HF_TOKEN não configurada');
     return res.status(500).send('Token do Hugging Face não configurado.');
   }
 
   try {
-    // Processa o upload com multer
     await new Promise((resolve, reject) => {
       upload.single('image_file')(req, res, (err) => {
         if (err) reject(err);
@@ -40,9 +43,10 @@ export default async function handler(req, res) {
       return res.status(413).send('Arquivo muito grande (máx 5MB).');
     }
 
-    // Chama a API do Hugging Face
+    console.log('📤 Enviando para Hugging Face (Xenova)...');
+    
     const response = await fetch(
-      'https://api-inference.huggingface.co/models/briaai/RMBG-1.4',
+      'https://api-inference.huggingface.co/models/Xenova/remove-background',
       {
         method: 'POST',
         headers: {
@@ -53,18 +57,20 @@ export default async function handler(req, res) {
       }
     );
 
+    console.log('📊 Status da resposta:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ Hugging Face API error (${response.status}):`, errorText);
+      console.error(`❌ Erro (${response.status}):`, errorText);
       return res.status(response.status).send(`Erro na API: ${response.status}`);
     }
 
-    // A API retorna a imagem processada diretamente (PNG com fundo transparente)
     const imageBuffer = await response.buffer();
     res.setHeader('Content-Type', 'image/png');
     return res.status(200).send(imageBuffer);
+    
   } catch (error) {
     console.error('❌ Erro no handler:', error);
-    return res.status(500).send('Erro interno.');
+    return res.status(500).send('Erro interno: ' + (error.message || 'sem detalhes'));
   }
 }
