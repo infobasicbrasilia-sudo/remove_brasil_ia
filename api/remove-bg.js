@@ -9,15 +9,13 @@ export const config = {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-const MODELS = [
+const HF_MODELS = [
   'nateraw/background-remover',
   'Xenova/remove-background',
-  'briaai/RMBG-1.4'
 ];
 
 export default async function handler(req, res) {
-  console.log('🚀 Função iniciada');
-  console.log('🔑 Token presente?', !!process.env.HF_TOKEN);
+  console.log('🚀 Função remove-bg iniciada');
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method !== 'POST') {
@@ -25,10 +23,7 @@ export default async function handler(req, res) {
   }
 
   const HF_TOKEN = process.env.HF_TOKEN;
-  if (!HF_TOKEN) {
-    console.error('❌ Token não encontrado');
-    return res.status(500).send('Token não configurado.');
-  }
+  const REPLICATE_TOKEN = process.env.REPLICATE_API_TOKEN;
 
   try {
     await new Promise((resolve, reject) => {
@@ -40,49 +35,97 @@ export default async function handler(req, res) {
 
     const file = req.file;
     if (!file) return res.status(400).send('Nenhuma imagem.');
-    if (file.size > 5 * 1024 * 1024) return res.status(413).send('Arquivo grande.');
+    if (file.size > 5 * 1024 * 1024) return res.status(413).send('Arquivo muito grande.');
 
-    console.log(`📁 Imagem: ${file.originalname} (${file.size} bytes)`);
-
-    let lastError = null;
-    for (const model of MODELS) {
-      try {
-        console.log(`➡️ Tentando modelo: ${model}`);
-        const start = Date.now();
-        const response = await fetch(
-          `https://api-inference.huggingface.co/models/${model}`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${HF_TOKEN}`,
-              'Content-Type': file.mimetype || 'image/png',
-            },
-            body: file.buffer,
+    // 1. Tenta Hugging Face (se token existir)
+    if (HF_TOKEN) {
+      console.log('📤 Tentando Hugging Face...');
+      for (const model of HF_MODELS) {
+        try {
+          const response = await fetch(
+            `https://api-inference.huggingface.co/models/${model}`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${HF_TOKEN}`,
+                'Content-Type': file.mimetype || 'image/png',
+              },
+              body: file.buffer,
+            }
+          );
+          if (response.ok) {
+            const buffer = await response.buffer();
+            console.log(`✅ Sucesso com Hugging Face (${model})`);
+            res.setHeader('Content-Type', 'image/png');
+            return res.status(200).send(buffer);
+          } else {
+            const text = await response.text();
+            console.warn(`⚠️ ${model} falhou (${response.status}): ${text.substring(0, 100)}`);
           }
-        );
-        const elapsed = Date.now() - start;
-        console.log(`⏱️ Tempo: ${elapsed}ms, Status: ${response.status}`);
-
-        if (response.ok) {
-          console.log(`✅ Sucesso com ${model}`);
-          const buffer = await response.buffer();
-          res.setHeader('Content-Type', 'image/png');
-          return res.status(200).send(buffer);
-        } else {
-          const text = await response.text();
-          console.warn(`⚠️ ${model} falhou (${response.status}): ${text}`);
-          lastError = `${model}: ${response.status} - ${text.substring(0, 100)}`;
+        } catch (err) {
+          console.warn(`⚠️ Erro com ${model}: ${err.message}`);
         }
-      } catch (err) {
-        console.warn(`⚠️ Erro com ${model}: ${err.message}`);
-        lastError = `${model}: ${err.message}`;
       }
+      console.log('⚠️ Hugging Face falhou, tentando Replicate...');
     }
 
-    throw new Error(`Todos falharam. Último: ${lastError}`);
+    // 2. Fallback para Replicate (se token existir)
+    if (REPLICATE_TOKEN) {
+      console.log('📤 Tentando Replicate...');
+      const base64Image = file.buffer.toString('base64');
+      const imageDataUrl = `data:${file.mimetype || 'image/png'};base64,${base64Image}`;
+
+      const response = await fetch('https://api.replicate.com/v1/predictions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${REPLICATE_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'cjwbw/rembg',
+          input: { image: imageDataUrl },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Replicate erro:', errorText);
+        throw new Error(`Replicate: ${response.status} - ${errorText}`);
+      }
+
+      const prediction = await response.json();
+      const predictionId = prediction.id;
+
+      let result = null;
+      for (let i = 0; i < 30; i++) {
+        const statusRes = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+          headers: { 'Authorization': `Token ${REPLICATE_TOKEN}` },
+        });
+        const statusData = await statusRes.json();
+        if (statusData.status === 'succeeded') {
+          result = statusData.output;
+          break;
+        } else if (statusData.status === 'failed') {
+          throw new Error('Falha no Replicate');
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      if (!result) throw new Error('Timeout Replicate');
+      const imageUrl = Array.isArray(result) ? result[0] : result;
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) throw new Error('Falha ao baixar imagem');
+
+      const imageBuffer = await imageResponse.buffer();
+      console.log('✅ Sucesso com Replicate');
+      res.setHeader('Content-Type', 'image/png');
+      return res.status(200).send(imageBuffer);
+    }
+
+    throw new Error('Nenhuma API configurada (HF_TOKEN ou REPLICATE_API_TOKEN)');
 
   } catch (error) {
     console.error('❌ Erro final:', error);
-    return res.status(500).send('Erro interno.');
+    return res.status(500).send('Erro interno: ' + error.message);
   }
 }

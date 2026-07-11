@@ -1,57 +1,59 @@
-import { exec } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import express from 'express';
 import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
+import fetch from 'node-fetch';
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
 const app = express();
 const port = 3000;
-const upload = multer({ dest: 'temp/' });
+const upload = multer({ storage: multer.memoryStorage() });
 
-if (!fs.existsSync('temp')) fs.mkdirSync('temp');
+const HF_TOKEN = process.env.HF_TOKEN;
 
-app.post('/api/remove-bg', upload.single('image_file'), (req, res) => {
-  const inputPath = req.file.path;
-  const outputPath = path.join('temp', uuidv4() + '.png');
+if (!HF_TOKEN) {
+  console.error('❌ HF_TOKEN não definido no .env');
+  process.exit(1);
+}
 
-  console.log(`📥 Imagem: ${req.file.originalname} (${req.file.size} bytes)`);
-  console.log(`📁 Entrada: ${inputPath}`);
-  console.log(`📁 Saída: ${outputPath}`);
+app.post('/api/remove-bg', upload.single('image_file'), async (req, res) => {
+  console.log('🚀 Processando com Hugging Face (nateraw)...');
 
-  // Chama o script Python
-  const command = `python remove_bg.py "${inputPath}" "${outputPath}"`;
-  console.log(`🔄 Executando: ${command}`);
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).send('Nenhuma imagem.');
+    if (file.size > 5 * 1024 * 1024) return res.status(413).send('Arquivo grande.');
 
-  exec(command, (error, stdout, stderr) => {
-    console.log('📤 stdout:', stdout);
-    console.log('📤 stderr:', stderr);
+    const response = await fetch(
+      'https://api-inference.huggingface.co/models/nateraw/background-remover',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Content-Type': file.mimetype || 'image/png',
+        },
+        body: file.buffer,
+      }
+    );
 
-    if (error) {
-      console.error(`❌ Erro: ${error.message}`);
-      return res.status(500).send('Erro: ' + stderr || error.message);
+    console.log('📊 Status:', response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erro:', errorText);
+      return res.status(response.status).send(`Erro: ${response.status}`);
     }
 
-    if (!fs.existsSync(outputPath)) {
-      console.error('❌ Arquivo de saída não gerado.');
-      return res.status(500).send('Arquivo de saída não gerado.');
-    }
-
-    console.log('✅ Imagem processada! Enviando...');
-    res.sendFile(outputPath, { root: '.' }, (err) => {
-      try { fs.unlinkSync(inputPath); } catch (e) {}
-      try { fs.unlinkSync(outputPath); } catch (e) {}
-      if (err) console.error('Erro ao enviar:', err);
-    });
-  });
+    const imageBuffer = await response.buffer();
+    res.setHeader('Content-Type', 'image/png');
+    res.status(200).send(imageBuffer);
+  } catch (error) {
+    console.error('❌ Erro:', error);
+    res.status(500).send('Erro: ' + error.message);
+  }
 });
 
 app.use(express.static('.'));
-
 app.listen(port, () => {
   console.log(`🔥 Servidor em http://localhost:${port}`);
   console.log(`📤 POST /api/remove-bg`);

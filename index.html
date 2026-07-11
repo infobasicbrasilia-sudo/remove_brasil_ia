@@ -1,14 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta http-equiv="Content-Security-Policy"
-content="
-default-src 'self';
-img-src 'self' blob: data:;
-script-src 'self' 'unsafe-inline';
-style-src 'self' 'unsafe-inline';
-connect-src 'self' https://clipdrop-api.co;
-">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remove Fundo de Foto</title>
@@ -33,7 +25,6 @@ connect-src 'self' https://clipdrop-api.co;
             max-width: 500px;
             border-bottom: 5px solid #009c3b;
         }
-        
         .logo-brasil {
             width: 120px;
             height: auto;
@@ -42,10 +33,7 @@ connect-src 'self' https://clipdrop-api.co;
             margin-left: auto;
             margin-right: auto;
         }
-        
         h1 { color: #0047bb; margin-bottom: 5px; font-size: 24px; }
-        .subtitle { color: #777; margin-bottom: 30px; display: block; font-size: 14px; }
-        
         .preview-container {
             width: 100%;
             height: 300px;
@@ -60,7 +48,6 @@ connect-src 'self' https://clipdrop-api.co;
             overflow: hidden;
         }
         #imagePreview { max-width: 100%; max-height: 100%; display: none; }
-        
         .custom-file-upload {
             display: inline-block;
             padding: 12px 24px;
@@ -72,7 +59,6 @@ connect-src 'self' https://clipdrop-api.co;
             transition: 0.3s;
         }
         .custom-file-upload:hover { background-color: #003580; }
-        
         #removeBtn {
             display: block;
             width: 100%;
@@ -89,7 +75,6 @@ connect-src 'self' https://clipdrop-api.co;
         }
         #removeBtn:hover:not(:disabled) { background-color: #007d2f; }
         #removeBtn:disabled { background-color: #ccc; cursor: not-allowed; }
-        
         .download-btn {
             display: none;
             width: 100%;
@@ -102,22 +87,29 @@ connect-src 'self' https://clipdrop-api.co;
             margin-top: 10px;
             box-sizing: border-box;
         }
-        
         .footer {
             margin-top: 20px;
             font-size: 12px;
             color: #777;
+        }
+        #status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #0047bb;
+        }
+        #progress {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    
     <img src="disruptLogo.png" alt="Logo" class="logo-brasil">
-    
     <h1>Remover Fundo</h1>
-   
+
     <div class="preview-container">
         <span id="placeholder" style="color:#aaa">Sua foto aparecerá aqui</span>
         <img src="" id="imagePreview">
@@ -129,21 +121,36 @@ connect-src 'self' https://clipdrop-api.co;
     <button id="removeBtn" disabled>Remover Fundo Agora</button>
     <a id="downloadBtn" class="download-btn" download="resultado_sem_fundo.png">BAIXAR FOTO PRONTA</a>
 
-    <div class="footer">
-        Devs: Alunos de Samambaia 404 do Instrutor Joner 2026
-    </div>
+    <div id="status"></div>
+    <div id="progress"></div>
+    <div class="footer">Devs: Alunos de Samambaia 404 do Instrutor Joner 2026</div>
 </div>
 
-<script>
+<script type="importmap">
+{
+    "imports": {
+        "@imgly/background-removal": "https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm"
+    }
+}
+</script>
+
+<script type="module">
+    import { removeBackground } from '@imgly/background-removal';
+
     const fileInput = document.getElementById('fileInput');
     const imagePreview = document.getElementById('imagePreview');
     const removeBtn = document.getElementById('removeBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const placeholder = document.getElementById('placeholder');
+    const statusDiv = document.getElementById('status');
+    const progressDiv = document.getElementById('progress');
+
+    let currentFile = null;
 
     fileInput.addEventListener('change', function() {
         const file = this.files[0];
         if (file) {
+            currentFile = file;
             const reader = new FileReader();
             reader.onload = e => {
                 imagePreview.src = e.target.result;
@@ -153,63 +160,56 @@ connect-src 'self' https://clipdrop-api.co;
                 downloadBtn.style.display = 'none';
                 removeBtn.innerText = "Remover Fundo Agora";
                 removeBtn.style.backgroundColor = "#009c3b";
-            }
+                statusDiv.textContent = "";
+                progressDiv.textContent = "";
+            };
             reader.readAsDataURL(file);
         }
     });
 
     removeBtn.addEventListener('click', async () => {
-        const file = fileInput.files[0];
-        if (!file) return;
+        if (!currentFile) return;
 
         removeBtn.disabled = true;
         removeBtn.innerText = "Processando...";
-
-        const formData = new FormData();
-        formData.append("image_file", file);
+        statusDiv.textContent = "⏳ Carregando modelo (pode levar até 1 minuto na primeira vez)...";
+        progressDiv.textContent = "Baixando modelo de IA...";
 
         try {
-            const response = await fetch("/api/remove-bg", {
-                method: "POST",
-                body: formData
-            });
+            // Configuração para evitar timeout e mostrar progresso
+            const config = {
+                progress: (key, current, total) => {
+                    if (key === 'model-download') {
+                        const percent = Math.round((current / total) * 100);
+                        progressDiv.textContent = `Baixando modelo: ${percent}%`;
+                        if (percent === 100) {
+                            progressDiv.textContent = "Processando imagem...";
+                        }
+                    }
+                }
+            };
 
-            if (!response.ok) {
-                const errorMsg = await response.text();
-                throw new Error(errorMsg || "Erro no servidor");
-            }
+            console.log('🚀 Iniciando remoção de fundo...');
+            const blob = await removeBackground(currentFile, config);
+            console.log('✅ Processamento concluído!');
 
-            const resultBlob = await response.blob();
-            const resultUrl = URL.createObjectURL(resultBlob);
-
-            imagePreview.src = resultUrl;
-            downloadBtn.href = resultUrl;
+            const url = URL.createObjectURL(blob);
+            imagePreview.src = url;
+            downloadBtn.href = url;
             downloadBtn.style.display = 'block';
             removeBtn.innerText = "Sucesso!";
             removeBtn.style.backgroundColor = "#0047bb";
-
+            statusDiv.textContent = "✅ Fundo removido com sucesso!";
+            progressDiv.textContent = "";
         } catch (error) {
-            console.error("Erro:", error);
-            alert("Erro ao processar imagem. Verifique se a chave da API está correta.");
+            console.error("❌ Erro detalhado:", error);
+            statusDiv.textContent = "❌ Erro: " + (error.message || "Falha no processamento");
+            progressDiv.textContent = "Tente novamente ou verifique sua conexão.";
             removeBtn.innerText = "Tentar Novamente";
             removeBtn.disabled = false;
             removeBtn.style.backgroundColor = "#009c3b";
         }
     });
-    
 </script>
-<script type="module">
-import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.0/dist/index.js';
-
-document.getElementById('fileInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const blob = await removeBackground(file);
-  const url = URL.createObjectURL(blob);
-  document.getElementById('imagePreview').src = url;
-  // ... mostrar download
-});
-</script>
-
 </body>
 </html>
