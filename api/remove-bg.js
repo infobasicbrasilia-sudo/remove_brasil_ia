@@ -10,6 +10,7 @@ export const config = {
 const upload = multer({ storage: multer.memoryStorage() });
 
 export default async function handler(req, res) {
+  // Segurança
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method !== 'POST') {
@@ -19,7 +20,7 @@ export default async function handler(req, res) {
   const CLIPDROP_KEY = process.env.CLIPDROP_API_KEY;
   if (!CLIPDROP_KEY) {
     console.error('❌ CLIPDROP_API_KEY não configurada');
-    return res.status(500).send('API key não configurada.');
+    return res.status(500).send('Chave da API não configurada.');
   }
 
   try {
