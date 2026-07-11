@@ -56,6 +56,9 @@ export default async function handler(req, res) {
       console.error(`❌ Erro (${response.status}):`, errorText);
       return res.status(response.status).send(`Erro na API: ${response.status}`);
     }
+    // Logo no início da função handler:
+console.log('🔑 HF_TOKEN existe?', !!process.env.HF_TOKEN);
+console.log('🔑 HF_TOKEN (primeiros 4 caracteres):', process.env.HF_TOKEN ? process.env.HF_TOKEN.substring(0, 4) : 'não definido');
 
     const imageBuffer = await response.buffer();
     res.setHeader('Content-Type', 'image/png');
