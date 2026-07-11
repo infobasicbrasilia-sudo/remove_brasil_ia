@@ -1,0 +1,18 @@
+­ƒÉì Usando Python: python
+­ƒöÑ Servidor em http://localhost:3000
+­ƒôñ POST /api/remove-bg
+­ƒôÑ Imagem: foto.jpg (1429060 bytes)
+­ƒôü Entrada: temp\e97292d1a79b73ec35f9e73edcf5bc97
+­ƒôü Sa├¡da: temp\09c88ceb-6fa5-4e7f-8e69-152bf369d956.png
+­ƒöä Executando: "python" -m rembg i "temp\e97292d1a79b73ec35f9e73edcf5bc97" "temp\09c88ceb-6fa5-4e7f-8e69-152bf369d956.png"
+­ƒôñ stdout: No onnxruntime backend found.
+Please install rembg with CPU or GPU support:
+
+    pip install "rembg[cpu]"  # for CPU
+    pip install "rembg[gpu]"  # for NVIDIA/CUDA GPU
+
+For more information, see: https://github.com/danielgatis/rembg#installation
+
+­ƒôñ stderr: 
+ÔØî Erro: Command failed: "python" -m rembg i "temp\e97292d1a79b73ec35f9e73edcf5bc97" "temp\09c88ceb-6fa5-4e7f-8e69-152bf369d956.png"
+
