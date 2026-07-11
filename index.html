@@ -196,6 +196,19 @@ connect-src 'self' https://clipdrop-api.co;
             removeBtn.style.backgroundColor = "#009c3b";
         }
     });
+    
+</script>
+<script type="module">
+import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.0/dist/index.js';
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const blob = await removeBackground(file);
+  const url = URL.createObjectURL(blob);
+  document.getElementById('imagePreview').src = url;
+  // ... mostrar download
+});
 </script>
 
 </body>

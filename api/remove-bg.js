@@ -1,6 +1,5 @@
 import multer from 'multer';
-import sharp from 'sharp';
-import { removeBackground } from '@imgly/background-removal-node';
+import fetch from 'node-fetch';
 
 export const config = {
   api: {
@@ -10,12 +9,25 @@ export const config = {
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+const MODELS = [
+  'nateraw/background-remover',
+  'Xenova/remove-background',
+  'briaai/RMBG-1.4'
+];
+
 export default async function handler(req, res) {
-  console.log('🚀 Função remove-bg (Node) iniciada');
+  console.log('🚀 Função iniciada');
+  console.log('🔑 Token presente?', !!process.env.HF_TOKEN);
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método inválido' });
+  }
+
+  const HF_TOKEN = process.env.HF_TOKEN;
+  if (!HF_TOKEN) {
+    console.error('❌ Token não encontrado');
+    return res.status(500).send('Token não configurado.');
   }
 
   try {
@@ -27,28 +39,50 @@ export default async function handler(req, res) {
     });
 
     const file = req.file;
-    if (!file) {
-      return res.status(400).send('Nenhuma imagem enviada.');
+    if (!file) return res.status(400).send('Nenhuma imagem.');
+    if (file.size > 5 * 1024 * 1024) return res.status(413).send('Arquivo grande.');
+
+    console.log(`📁 Imagem: ${file.originalname} (${file.size} bytes)`);
+
+    let lastError = null;
+    for (const model of MODELS) {
+      try {
+        console.log(`➡️ Tentando modelo: ${model}`);
+        const start = Date.now();
+        const response = await fetch(
+          `https://api-inference.huggingface.co/models/${model}`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${HF_TOKEN}`,
+              'Content-Type': file.mimetype || 'image/png',
+            },
+            body: file.buffer,
+          }
+        );
+        const elapsed = Date.now() - start;
+        console.log(`⏱️ Tempo: ${elapsed}ms, Status: ${response.status}`);
+
+        if (response.ok) {
+          console.log(`✅ Sucesso com ${model}`);
+          const buffer = await response.buffer();
+          res.setHeader('Content-Type', 'image/png');
+          return res.status(200).send(buffer);
+        } else {
+          const text = await response.text();
+          console.warn(`⚠️ ${model} falhou (${response.status}): ${text}`);
+          lastError = `${model}: ${response.status} - ${text.substring(0, 100)}`;
+        }
+      } catch (err) {
+        console.warn(`⚠️ Erro com ${model}: ${err.message}`);
+        lastError = `${model}: ${err.message}`;
+      }
     }
-    if (file.size > 5 * 1024 * 1024) {
-      return res.status(413).send('Arquivo muito grande (máx 5MB).');
-    }
 
-    console.log(`📁 Arquivo recebido: ${file.originalname} (${file.size} bytes, ${file.mimetype})`);
+    throw new Error(`Todos falharam. Último: ${lastError}`);
 
-    // Converter para PNG com sharp (garante formato suportado)
-    console.log('🔄 Convertendo para PNG...');
-    const pngBuffer = await sharp(file.buffer).png().toBuffer();
-
-    // Remover fundo usando a biblioteca Node
-    console.log('🧹 Removendo fundo com @imgly/background-removal-node...');
-    const outputBuffer = await removeBackground(pngBuffer);
-
-    console.log('✅ Imagem processada com sucesso!');
-    res.setHeader('Content-Type', 'image/png');
-    return res.status(200).send(outputBuffer);
   } catch (error) {
-    console.error('❌ Erro no processamento:', error);
-    return res.status(500).send('Erro interno: ' + error.message);
+    console.error('❌ Erro final:', error);
+    return res.status(500).send('Erro interno.');
   }
 }
